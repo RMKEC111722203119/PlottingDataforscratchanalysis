@@ -11,6 +11,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Define professional color palette
+PRO_COLOR_PALETTE = {
+    "Healthy": "#4CAF50",   # Green
+    "1H": "#2196F3",        # Blue
+    "2H": "#FF9800",        # Orange
+    "3H": "#9C27B0",        # Purple
+    "4H": "#795548",        # Brown
+    "1 Scratch": "#E91E63", # Pink
+    "2 Scratch": "#607D8B", # Grey
+    "3 Scratch": "#FF5722", # Red
+    "4 Scratch": "#009688"  # Teal
+}
+
 # Load data (replace with your file loading method)
 @st.cache
 def load_data(file):
@@ -20,136 +33,151 @@ def load_data(file):
         return pd.read_excel(file)
 
 st.sidebar.header("Data Configuration")
-uploaded_file = st.sidebar.file_uploader(
-    "Upload your Excel/CSV file", 
-    type=["xlsx", "xls", "csv"], 
-    help="Upload your data file to begin visualization"
+uploaded_file = st.sidebar.file_uploader("Upload your Excel/CSV file", type=["xlsx", "xls", "csv"])
+
+st.title("Data Visualization Dashboard")
+st.markdown(
+    "<h3 style='text-align: center; color: #333;'>Upload your data and explore visualizations</h3>",
+    unsafe_allow_html=True
 )
-
-st.sidebar.header("Chart Configuration")
-chart_type = st.sidebar.selectbox(
-    "Select Chart Type",
-    ["2D Scatter", "3D Scatter", "Bar Chart (Mean)"],
-    help="Choose the type of visualization"
-)
-
-color_palette = st.sidebar.selectbox(
-    "Select Color Palette",
-    ["Set1", "Set2", "Dark2"],
-    help="Choose a professional color palette"
-)
-
-chart_title = st.sidebar.text_input(
-    "Chart Title",
-    "Professional Data Visualization",
-    help="Enter a custom title for your chart"
-)
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("© 2024, Your Professional Data Team")
-
-st.title("Professional Data Visualization Dashboard")
-st.write("A polished interface for data exploration and analysis")
 
 if uploaded_file is not None:
     try:
         df = load_data(uploaded_file)
-        df = df.dropna()
-    
+        df = df.dropna()  # Basic data cleaning
+
+        # Default chart boundaries
+        fixed_x_range = (-70, -20)
+        fixed_y_range = (-70, -20)
+        fixed_z_range = (1700, 1800)
+
+        # Status selection
         status_options = df["Status"].unique()
-        
-        # Advanced status selection
-        st.sidebar.subheader("Status Selection")
         selected_statuses = st.sidebar.multiselect(
-            "Select Statuses to Compare:",
-            status_options,
-            default=status_options.tolist(),
-            help="Choose statuses to include in the visualization"
+            "Select Statuses to Include:",
+            options=status_options,
+            default=list(status_options),
+            format_func=lambda x: x.replace(" ", " - ").title(),
+            key="status_selector"
         )
-        
-        # Color customization
-        st.sidebar.subheader("Color Customization")
-        color_mapping = {}
-        for status in status_options:
-            default_color = f"C{status_options.tolist().index(status)}"
-            color = st.sidebar.color_picker(
-                f"Status {status}:",
-                value=sns.color_palette(color_palette)[status_options.tolist().index(status)],
-                help="Select a color for each status"
-            )
-            color_mapping[status] = color
-        
+
+        # Filter data based on selected statuses
         filtered_df = df[df["Status"].isin(selected_statuses)]
-        
-        # Chart customization
-        if chart_type == "2D Scatter":
-            fig, ax = plt.subplots(figsize=(10, 6))
-            for status in selected_statuses:
-                subset = filtered_df[filtered_df["Status"] == status]
-                ax.scatter(
-                    subset["30.9"],
-                    subset["89.6"],
-                    label=status,
-                    color=color_mapping.get(status, sns.color_palette(color_palette)[status_options.tolist().index(status)]),
-                    alpha=0.7
+
+        # Visualization type selection
+        chart_type = st.sidebar.selectbox(
+            "Select Chart Type",
+            ["2D Scatter", "3D Scatter", "Bar Chart"],
+            key="chart_type_selector"
+        )
+
+        # Plotting
+        if not filtered_df.empty:
+            if chart_type == "2D Scatter":
+                fig, ax = plt.subplots(figsize=(10, 6))
+                for status in selected_statuses:
+                    subset = filtered_df[filtered_df["Status"] == status]
+                    ax.scatter(
+                        subset["30.9"],
+                        subset["89.6"],
+                        label=status,
+                        color=PRO_COLOR_PALETTE.get(status, '#1f78b4'),
+                        alpha=0.7,
+                        edgecolor='white',
+                        linewidth=0.5
+                    )
+                ax.set_title("30.9 vs 89.6 Performance", fontsize=16, weight='bold')
+                ax.set_xlim(fixed_x_range)
+                ax.set_ylim(fixed_y_range)
+                ax.set_xlabel("30.9 Metric", fontsize=12, color='#444')
+                ax.set_ylabel("89.6 Metric", fontsize=12, color='#444')
+                ax.tick_params(axis='both', colors='#666')
+                ax.legend(title="Status", loc='upper left', frameon=False)
+                plt.grid(color='#eee', linestyle='--', linewidth=0.5)
+                st.pyplot(fig)
+
+            elif chart_type == "3D Scatter":
+                fig = px.scatter_3d(
+                    filtered_df,
+                    x="30.9",
+                    y="89.6",
+                    z="RPM",
+                    color="Status",
+                    color_discrete_map=PRO_COLOR_PALETTE,
+                    title="3D Performance Visualization",
+                    labels={"RPM": "Revolutions per Minute"},
+                    range_x=fixed_x_range,
+                    range_y=fixed_y_range,
+                    range_z=fixed_z_range
                 )
-            ax.set_title(chart_title, fontsize=16, fontweight="bold")
-            ax.set_xlabel("30.9 Sensor Value", fontsize=12)
-            ax.set_ylabel("89.6 Sensor Value", fontsize=12)
-            ax.set_xlim(-70, -20)
-            ax.set_ylim(-70, -20)
-            ax.legend(title="Status", loc="upper right")
-            plt.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-            st.pyplot(fig)
-        
-        elif chart_type == "3D Scatter":
-            fig = px.scatter_3d(
-                filtered_df,
-                x="30.9",
-                y="89.6",
-                z="RPM",
-                color="Status",
-                color_discrete_map=color_mapping,
-                title=chart_title,
-                labels={"30.9": "30.9 Sensor Value", "89.6": "89.6 Sensor Value", "RPM": "RPM Value"}
+                fig.update_layout(
+                    scene=dict(
+                        xaxis=dict(backgroundcolor="#f0f0f0"),
+                        yaxis=dict(backgroundcolor="#f0f0f0"),
+                        zaxis=dict(backgroundcolor="#f0f0f0"),
+                    ),
+                    title_font=dict(size=16, color='#333'),
+                    legend_font=dict(color='#444'),
+                    paper_bgcolor='#f9f9f9',
+                    plot_bgcolor='#f9f9f9'
+                )
+                st.plotly_chart(fig)
+
+            elif chart_type == "Bar Chart":
+                fig = px.bar(
+                    filtered_df.groupby("Status", as_index=False).mean(),
+                    x="Status",
+                    y=["30.9", "89.6", "RPM"],
+                    color="Status",
+                    color_discrete_map=PRO_COLOR_PALETTE,
+                    title="Average Metrics by Status",
+                    labels={"value": "Average Value"},
+                    width=1000,
+                    height=600
+                )
+                fig.update_traces(
+                    opacity=0.8,
+                    hovertemplate="<b>Status: %{x}</b><br><br>" +
+                                "30.9: %{y:.2f}<br>" +
+                                "89.6: %{y:.2f}<br>" +
+                                "RPM: %{y:.2f}",
+                )
+                fig.update_layout(
+                    title_font=dict(size=16, color='#333'),
+                    xaxis_title_font=dict(color='#444'),
+                    yaxis_title_font=dict(color='#444'),
+                    legend_font=dict(color='#444'),
+                    paper_bgcolor='#f9f9f9',
+                    plot_bgcolor='#f9f9f9',
+                    xaxis_gridcolor='#eee',
+                    yaxis_gridcolor='#eee'
+                )
+                st.plotly_chart(fig)
+
+            # Download processed data
+            @st.cache
+            def convert_df(data):
+                return data.to_csv(index=False).encode('utf-8')
+
+            csv = convert_df(filtered_df)
+            st.download_button(
+                label="Download Filtered Data",
+                data=csv,
+                file_name='filtered_data.csv',
+                mime='text/csv',
             )
-            fig.update_layout(
-                scene=dict(
-                    xaxis=dict(range=[-70, -20], title="30.9 Sensor Value"),
-                    yaxis=dict(range=[-70, -20], title="89.6 Sensor Value"),
-                ),
-                margin=dict(l=40, r=40, b=40, t=40),
-                font=dict(size=12, color="black"),
-                paper_bgcolor='white',
-                plot_bgcolor='white'
-            )
-            st.plotly_chart(fig)
-        
-        elif chart_type == "Bar Chart (Mean)":
-            fig = px.bar(
-                filtered_df.groupby("Status", as_index=False).mean(),
-                x="Status",
-                y=["30.9", "89.6", "RPM"],
-                color="Status",
-                color_discrete_map=color_mapping,
-                title=chart_title,
-                labels={"Status": "Status", "value": "Mean Value", "variable": "Metric"},
-            )
-            fig.update_layout(
-                margin=dict(l=40, r=40, b=40, t=40),
-                font=dict(size=12, color="black"),
-                paper_bgcolor='white',
-                plot_bgcolor='white',
-                legend=dict(title="Status", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            st.plotly_chart(fig)
-        
-        # Show data table
-        if st.checkbox("Show Raw Data"):
+
+        else:
+            st.warning("No data available for the selected statuses")
+
+        # Show raw data
+        if st.checkbox("Show Raw Data", key="data_toggle"):
             st.subheader("Raw Data")
-            st.dataframe(filtered_df.style.highlight_max(axis=0))
-    
+            st.write(filtered_df.style.set_properties(**{
+                'background-color': '#f9f9f9',
+                'color': '#333'
+            }))
     except Exception as e:
         st.error(f"Error processing file: {e}")
 else:
-    st.warning("Please upload a file to get started")
+    st.warning("Please upload a file to proceed")
