@@ -32,7 +32,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.sidebar.header("Data Configuration")
+st.sidebar.header("Visualization Configuration")
+
 uploaded_file = st.sidebar.file_uploader("Upload your Excel/CSV file", type=["xlsx", "xls", "csv"])
 
 st.title("Data Visualization Dashboard")
@@ -46,6 +47,10 @@ if uploaded_file is not None:
         df = load_data(uploaded_file)
         df = df.dropna()  # Basic data cleaning
 
+        # Default axis columns
+        default_x = "30.9" if "30.9" in df.columns else df.select_dtypes(include=['float64', 'int64']).columns[0]
+        default_y = "89.6" if "89.6" in df.columns else df.select_dtypes(include=['float64', 'int64']).columns[0]
+
         # Move color configuration to a dedicated sidebar section
         st.sidebar.header("Color Customization")
         color_mapping = {}
@@ -53,22 +58,23 @@ if uploaded_file is not None:
             color = st.sidebar.color_picker(f"Color for {status}", PRO_COLOR_PALETTE.get(status, "#1f77b4"))
             color_mapping[status] = color
 
-        # Main sidebar configuration
-        st.sidebar.header("Visualization Configuration")
-        selected_status = st.sidebar.multiselect(
-            "Select Statuses:",
-            options=df["Status"].unique(),
-            default=list(df["Status"].unique()),
-            key="status_selector"
-        )
-
-        # Allow users to change X and Y axes
-        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
-        x_axis_column = st.sidebar.selectbox("Select X-axis Column", numeric_cols, key="x_axis")
-        y_axis_column = st.sidebar.selectbox("Select Y-axis Column", numeric_cols, key="y_axis")
+        # Main area configuration
+        st.subheader("Select Statuses:")
+        status_options = df["Status"].unique()
+        selected_status = []
+        for status in status_options:
+            checkbox = st.checkbox(status, value=True, key=status)
+            if checkbox:
+                selected_status.append(status)
 
         # Filter data based on selected statuses
         filtered_df = df[df["Status"].isin(selected_status)]
+
+        # Allow users to change X, Y, and Z axes
+        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+        x_axis_column = st.sidebar.selectbox("Select X-axis Column", numeric_cols, index=numeric_cols.get_loc(default_x))
+        y_axis_column = st.sidebar.selectbox("Select Y-axis Column", numeric_cols, index=numeric_cols.get_loc(default_y))
+        z_axis_column = st.sidebar.selectbox("Select Z-axis Column (3D Only)", numeric_cols, index=numeric_cols.get_loc("RPM") if "RPM" in numeric_cols else 0)
 
         # Visualization type selection
         chart_type = st.sidebar.selectbox(
@@ -95,6 +101,8 @@ if uploaded_file is not None:
                 ax.set_title("Custom Scatter Plot", fontsize=16, weight='bold')
                 ax.set_xlabel(x_axis_column, fontsize=12, color='#444')
                 ax.set_ylabel(y_axis_column, fontsize=12, color='#444')
+                ax.set_xlim(-70, -20)  # Fixed X-axis range
+                ax.set_ylim(-70, -20)  # Fixed Y-axis range
                 ax.tick_params(axis='both', colors='#666')
                 ax.legend(title="Status", loc='upper left', frameon=False)
                 plt.grid(color='#eee', linestyle='--', linewidth=0.5)
@@ -105,11 +113,13 @@ if uploaded_file is not None:
                     filtered_df,
                     x=x_axis_column,
                     y=y_axis_column,
-                    z="RPM",
+                    z=z_axis_column,
                     color="Status",
                     color_discrete_map=color_mapping,
                     title="3D Performance Visualization",
-                    labels={"RPM": "Revolutions per Minute"}
+                    labels={z_axis_column: "Revolutions per Minute"},
+                    range_x=[-70, -20],  # Fixed X-axis range
+                    range_y=[-70, -20],  # Fixed Y-axis range
                 )
                 fig.update_layout(
                     scene=dict(
@@ -128,7 +138,7 @@ if uploaded_file is not None:
                 fig = px.bar(
                     filtered_df.groupby("Status", as_index=False).mean(),
                     x="Status",
-                    y=[x_axis_column, y_axis_column, "RPM"],
+                    y=[x_axis_column, y_axis_column, z_axis_column],
                     color="Status",
                     color_discrete_map=color_mapping,
                     title="Average Metrics by Status",
@@ -141,7 +151,7 @@ if uploaded_file is not None:
                     hovertemplate="<b>Status: %{x}</b><br><br>" +
                                 f"{x_axis_column}: %{y:.2f}<br>" +
                                 f"{y_axis_column}: %{y:.2f}<br>" +
-                                "RPM: %{y:.2f}",
+                                f"{z_axis_column}: %{y:.2f}",
                 )
                 fig.update_layout(
                     title_font=dict(size=16, color='#333'),
