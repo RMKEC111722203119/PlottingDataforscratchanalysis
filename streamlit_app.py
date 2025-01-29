@@ -81,18 +81,14 @@ if uploaded_file is not None:
             )
             ax.set_title(chart_title)
             ax.grid(show_grid)
+            ax.set_xlim(20, 70)  # Set X-axis limits
+            ax.set_ylim(20, 70)  # Set Y-axis limits
             st.pyplot(fig)
         
         elif chart_type == "3D Scatter":
             x_var = st.sidebar.selectbox("X-axis", numeric_cols, index=list(numeric_cols).index(default_x))
             y_var = st.sidebar.selectbox("Y-axis", numeric_cols, index=list(numeric_cols).index(default_y))
             z_var = st.sidebar.selectbox("Z-axis", numeric_cols, index=list(numeric_cols).index(default_z))
-            
-            # Debugging: Check if '4H' has valid data points
-            if '4H' in selected_statuses and '4H' in filtered_df['Status'].values:
-                st.write("4H data available for plotting")
-            else:
-                st.warning("No data found for 4H status")
             
             fig = px.scatter_3d(
                 filtered_df, 
@@ -103,6 +99,13 @@ if uploaded_file is not None:
                 title=chart_title,
                 color_discrete_sequence=px.colors.qualitative.Set1
             )
+
+            # Set 3D axes limits
+            fig.update_layout(scene=dict(
+                xaxis=dict(range=[20, 70], title=x_var),
+                yaxis=dict(range=[20, 70], title=y_var),
+                zaxis=dict(title=z_var)
+            ))
             st.plotly_chart(fig, use_container_width=True)
         
         elif chart_type == "Boxplot":
