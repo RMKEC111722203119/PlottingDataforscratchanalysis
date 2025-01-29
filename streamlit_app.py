@@ -24,12 +24,13 @@ chart_type = st.sidebar.selectbox(
 )
 
 color_palette = st.sidebar.selectbox(
-    "Select Color Palette",
-    ["Set1", "Set2", "tab10", "Dark2", "Paired"]
+    "Select Default Palette",
+    ["viridis", "plasma", "inferno", "magma", "cividis", "tab10", "Set1", "Set2"]
 )
 
-show_grid = st.sidebar.checkbox("Show Gridlines", value=True)
-chart_title = st.sidebar.text_input("Enter chart title", "Default Title")
+min_value = -70
+max_value = -20
+st.sidebar.info(f"Data range fixed between {min_value} and {max_value}")
 
 st.title("Data Visualization Dashboard")
 st.write("Upload your data and customize visualizations")
@@ -57,32 +58,45 @@ if uploaded_file is not None:
         default_y = '89.6' if '89.6' in numeric_cols else numeric_cols[0]
         default_z = 'RPM' if 'RPM' in numeric_cols else None
 
-        st.subheader("Select Status Categories")
+        # Column layout for status checkboxes
+        col1, col2, col3 = st.columns(3)
         selected_statuses = []
-        for status in status_options:
-            checkbox = st.checkbox(status, value=True, key=status)
-            if checkbox:
-                selected_statuses.append(status)
+        status_colors = {}
+        
+        for i, status in enumerate(status_options):
+            with st.columns(3)[i % 3]:
+                selected = st.checkbox(status, value=True, key=f"{status}_check")
+                if selected:
+                    selected_statuses.append(status)
+                    color = st.color_picker(f"Color for {status}", value="#ffff00", key=f"{status}_color")
+                    status_colors[status] = color
         
         filtered_df = df[df['Status'].isin(selected_statuses)]
+        
+        # Assign custom colors first, then default palette
+        custom_colors = [status_colors.get(s, color_palette) for s in filtered_df['Status']]
         
         if chart_type == "2D Scatter":
             x_var = st.sidebar.selectbox("X-axis", numeric_cols, index=list(numeric_cols).index(default_x))
             y_var = st.sidebar.selectbox("Y-axis", numeric_cols, index=list(numeric_cols).index(default_y))
             
             fig, ax = plt.subplots(figsize=(10, 6))
-            sns.scatterplot(
+            scatter = sns.scatterplot(
                 x=x_var, 
                 y=y_var, 
                 hue='Status', 
                 data=filtered_df,
-                palette=color_palette,
+                palette=custom_colors,
                 ax=ax
             )
-            ax.set_title(chart_title)
-            ax.grid(show_grid)
-            ax.set_xlim(20, 70)  # Set X-axis limits
-            ax.set_ylim(20, 70)  # Set Y-axis limits
+            
+            # Assign custom colors
+            for label, color in status_colors.items():
+                scatter.legend_.get_texts()[list(status_colors.keys()).index(label)].set_color(color)
+            
+            # Set fixed data limits
+            ax.set_xlim(min_value, max_value)
+            ax.set_ylim(min_value, max_value)
             st.pyplot(fig)
         
         elif chart_type == "3D Scatter":
@@ -97,80 +111,11 @@ if uploaded_file is not None:
                 z=z_var, 
                 color='Status',
                 title=chart_title,
-                color_discrete_sequence=px.colors.qualitative.Set1
+                color_discrete_sequence=list(status_colors.values()) or px.colors.qualitative.Set1
             )
-
-            # Set 3D axes limits
-            fig.update_layout(scene=dict(
-                xaxis=dict(range=[20, 70], title=x_var),
-                yaxis=dict(range=[20, 70], title=y_var),
-                zaxis=dict(title=z_var)
-            ))
             st.plotly_chart(fig, use_container_width=True)
         
-        elif chart_type == "Boxplot":
-            x_var = st.sidebar.selectbox("X-axis", cat_cols)
-            y_var = st.sidebar.selectbox("Y-axis", numeric_cols)
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.boxplot(
-                x=x_var,
-                y=y_var,
-                data=filtered_df,
-                palette=color_palette,
-                ax=ax
-            )
-            ax.set_title(chart_title)
-            ax.grid(show_grid)
-            st.pyplot(fig)
-        
-        elif chart_type == "Histogram":
-            x_var = st.sidebar.selectbox("Variable", numeric_cols)
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.histplot(
-                filtered_df[x_var],
-                kde=True,
-                color=color_palette,
-                ax=ax
-            )
-            ax.set_title(chart_title)
-            ax.grid(show_grid)
-            st.pyplot(fig)
-        
-        elif chart_type == "Line Chart":
-            x_var = st.sidebar.selectbox("X-axis", numeric_cols)
-            y_var = st.sidebar.selectbox("Y-axis", numeric_cols)
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.lineplot(
-                x=x_var, 
-                y=y_var, 
-                hue='Status',
-                data=filtered_df,
-                palette=color_palette,
-                ax=ax
-            )
-            ax.set_title(chart_title)
-            ax.grid(show_grid)
-            st.pyplot(fig)
-        
-        elif chart_type == "Bar Chart":
-            x_var = st.sidebar.selectbox("X-axis", cat_cols)
-            y_var = st.sidebar.selectbox("Y-axis", numeric_cols)
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.barplot(
-                x=x_var,
-                y=y_var,
-                hue='Status',
-                data=filtered_df,
-                palette=color_palette,
-                ax=ax
-            )
-            ax.set_title(chart_title)
-            ax.grid(show_grid)
-            st.pyplot(fig)
+        # Add more chart types here if needed...
         
         if st.checkbox("Show data"):
             st.subheader("Filtered Data")
