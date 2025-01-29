@@ -51,21 +51,15 @@ if uploaded_file is not None:
         default_x = "30.9" if "30.9" in df.columns else df.select_dtypes(include=['float64', 'int64']).columns[0]
         default_y = "89.6" if "89.6" in df.columns else df.select_dtypes(include=['float64', 'int64']).columns[0]
 
-        # Move color configuration to a dedicated sidebar section
-        st.sidebar.header("Color Customization")
-        color_mapping = {}
-        for status in df["Status"].unique():
-            color = st.sidebar.color_picker(f"Color for {status}", PRO_COLOR_PALETTE.get(status, "#1f77b4"))
-            color_mapping[status] = color
-
         # Main area configuration
         st.subheader("Select Statuses:")
-        status_options = df["Status"].unique()
+        columns = st.columns(len(df["Status"].unique()))
         selected_status = []
-        for status in status_options:
-            checkbox = st.checkbox(status, value=True, key=status)
-            if checkbox:
-                selected_status.append(status)
+        for i, status in enumerate(df["Status"].unique()):
+            with columns[i]:
+                checkbox = st.checkbox(status, value=True, key=status)
+                if checkbox:
+                    selected_status.append(status)
 
         # Filter data based on selected statuses
         filtered_df = df[df["Status"].isin(selected_status)]
@@ -82,6 +76,13 @@ if uploaded_file is not None:
             ["2D Scatter", "3D Scatter", "Bar Chart"],
             key="chart_type"
         )
+
+        # Move color configuration to the end of sidebar
+        st.sidebar.header("Color Customization")
+        color_mapping = {}
+        for status in df["Status"].unique():
+            color = st.sidebar.color_picker(f"Color for {status}", PRO_COLOR_PALETTE.get(status, "#1f77b4"))
+            color_mapping[status] = color
 
         # Plotting
         if not filtered_df.empty:
@@ -101,8 +102,8 @@ if uploaded_file is not None:
                 ax.set_title("Custom Scatter Plot", fontsize=16, weight='bold')
                 ax.set_xlabel(x_axis_column, fontsize=12, color='#444')
                 ax.set_ylabel(y_axis_column, fontsize=12, color='#444')
-                ax.set_xlim(-70, -20)  # Fixed X-axis range
-                ax.set_ylim(-70, -20)  # Fixed Y-axis range
+                ax.set_xlim(-70, -20)  
+                ax.set_ylim(-70, -20)  
                 ax.tick_params(axis='both', colors='#666')
                 ax.legend(title="Status", loc='upper left', frameon=False)
                 plt.grid(color='#eee', linestyle='--', linewidth=0.5)
@@ -118,8 +119,8 @@ if uploaded_file is not None:
                     color_discrete_map=color_mapping,
                     title="3D Performance Visualization",
                     labels={z_axis_column: "Revolutions per Minute"},
-                    range_x=[-70, -20],  # Fixed X-axis range
-                    range_y=[-70, -20],  # Fixed Y-axis range
+                    range_x=[-70, -20],  
+                    range_y=[-70, -20],  
                 )
                 fig.update_layout(
                     scene=dict(
