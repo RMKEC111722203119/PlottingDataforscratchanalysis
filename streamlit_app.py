@@ -5,21 +5,18 @@ import seaborn as sns
 import plotly.express as px
 from io import StringIO
 
-# Configure page settings
 st.set_page_config(
-    page_title="Interactive Data Visualization App",
+    page_title="Data Visualization Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Sidebar - File Upload
 st.sidebar.header("Data Configuration")
 uploaded_file = st.sidebar.file_uploader(
     "Upload your Excel/CSV file",
     type=["xlsx", "xls", "csv"]
 )
 
-# Sidebar - Chart Configuration
 st.sidebar.header("Visualization Configuration")
 chart_type = st.sidebar.selectbox(
     "Select Chart Type",
@@ -28,17 +25,15 @@ chart_type = st.sidebar.selectbox(
 
 color_palette = st.sidebar.selectbox(
     "Select Color Palette",
-    ["viridis", "plasma", "inferno", "magma", "cividis", "tab10", "Set1", "Set2"]
+    ["Set1", "Set2", "tab10", "Dark2", "Paired"]
 )
 
 show_grid = st.sidebar.checkbox("Show Gridlines", value=True)
 chart_title = st.sidebar.text_input("Enter chart title", "Default Title")
 
-# Main App Area
 st.title("Data Visualization Dashboard")
 st.write("Upload your data and customize visualizations")
 
-# Read file if uploaded
 if uploaded_file is not None:
     try:
         if uploaded_file.name.endswith('.csv'):
@@ -46,10 +41,8 @@ if uploaded_file is not None:
         else:
             df = pd.read_excel(uploaded_file)
         
-        # Basic data cleaning
         df = df.dropna()
         
-        # Identify numerical and categorical columns
         numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
         cat_cols = df.select_dtypes(include=['object', 'category']).columns
         
@@ -59,20 +52,23 @@ if uploaded_file is not None:
             st.warning("No 'Status' column found. Please upload a file with a 'Status' column.")
             st.stop()
         
-        # Allow status filtering
+        # Set default axis values if columns exist
+        default_x = '30.9' if '30.9' in numeric_cols else numeric_cols[0]
+        default_y = '89.6' if '89.6' in numeric_cols else numeric_cols[0]
+        default_z = 'RPM' if 'RPM' in numeric_cols else None
+
         st.subheader("Select Status Categories")
-        selected_statuses = st.multiselect(
-            "Select statuses to include:",
-            options=status_options,
-            default=list(status_options)
-        )
+        selected_statuses = []
+        for status in status_options:
+            checkbox = st.checkbox(status, value=True, key=status)
+            if checkbox:
+                selected_statuses.append(status)
         
         filtered_df = df[df['Status'].isin(selected_statuses)]
         
-        # Chart creation based on user selection
         if chart_type == "2D Scatter":
-            x_var = st.sidebar.selectbox("X-axis", numeric_cols)
-            y_var = st.sidebar.selectbox("Y-axis", numeric_cols)
+            x_var = st.sidebar.selectbox("X-axis", numeric_cols, index=list(numeric_cols).index(default_x))
+            y_var = st.sidebar.selectbox("Y-axis", numeric_cols, index=list(numeric_cols).index(default_y))
             
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.scatterplot(
@@ -85,13 +81,18 @@ if uploaded_file is not None:
             )
             ax.set_title(chart_title)
             ax.grid(show_grid)
-            
             st.pyplot(fig)
         
         elif chart_type == "3D Scatter":
-            x_var = st.sidebar.selectbox("X-axis", numeric_cols)
-            y_var = st.sidebar.selectbox("Y-axis", numeric_cols)
-            z_var = st.sidebar.selectbox("Z-axis", numeric_cols)
+            x_var = st.sidebar.selectbox("X-axis", numeric_cols, index=list(numeric_cols).index(default_x))
+            y_var = st.sidebar.selectbox("Y-axis", numeric_cols, index=list(numeric_cols).index(default_y))
+            z_var = st.sidebar.selectbox("Z-axis", numeric_cols, index=list(numeric_cols).index(default_z))
+            
+            # Debugging: Check if '4H' has valid data points
+            if '4H' in selected_statuses and '4H' in filtered_df['Status'].values:
+                st.write("4H data available for plotting")
+            else:
+                st.warning("No data found for 4H status")
             
             fig = px.scatter_3d(
                 filtered_df, 
@@ -99,13 +100,14 @@ if uploaded_file is not None:
                 y=y_var, 
                 z=z_var, 
                 color='Status',
-                title=chart_title
+                title=chart_title,
+                color_discrete_sequence=px.colors.qualitative.Set1
             )
             st.plotly_chart(fig, use_container_width=True)
         
         elif chart_type == "Boxplot":
-            x_var = st.sidebar.selectbox("X-axis (Categorical)", cat_cols)
-            y_var = st.sidebar.selectbox("Y-axis (Numerical)", numeric_cols)
+            x_var = st.sidebar.selectbox("X-axis", cat_cols)
+            y_var = st.sidebar.selectbox("Y-axis", numeric_cols)
             
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.boxplot(
@@ -117,7 +119,6 @@ if uploaded_file is not None:
             )
             ax.set_title(chart_title)
             ax.grid(show_grid)
-            
             st.pyplot(fig)
         
         elif chart_type == "Histogram":
@@ -132,7 +133,6 @@ if uploaded_file is not None:
             )
             ax.set_title(chart_title)
             ax.grid(show_grid)
-            
             st.pyplot(fig)
         
         elif chart_type == "Line Chart":
@@ -150,11 +150,10 @@ if uploaded_file is not None:
             )
             ax.set_title(chart_title)
             ax.grid(show_grid)
-            
             st.pyplot(fig)
         
         elif chart_type == "Bar Chart":
-            x_var = st.sidebar.selectbox("X-axis", categorical_cols)
+            x_var = st.sidebar.selectbox("X-axis", cat_cols)
             y_var = st.sidebar.selectbox("Y-axis", numeric_cols)
             
             fig, ax = plt.subplots(figsize=(10, 6))
@@ -168,10 +167,8 @@ if uploaded_file is not None:
             )
             ax.set_title(chart_title)
             ax.grid(show_grid)
-            
             st.pyplot(fig)
         
-        # Show filtered data
         if st.checkbox("Show data"):
             st.subheader("Filtered Data")
             st.dataframe(filtered_df)
