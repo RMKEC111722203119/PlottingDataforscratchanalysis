@@ -6,22 +6,22 @@ import plotly.express as px
 from io import StringIO
 
 st.set_page_config(
-    page_title="Professional Data Visualization Dashboard",
+    page_title="Flexible Data Visualization Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Define professional color palette
+# Professional color palette
 PRO_COLOR_PALETTE = {
-    "Healthy": "#4CAF50",   # Green
-    "1H": "#2196F3",        # Blue
-    "2H": "#FF9800",        # Orange
-    "3H": "#9C27B0",        # Purple
-    "4H": "#795548",        # Brown
-    "1 Scratch": "#E91E63", # Pink
-    "2 Scratch": "#607D8B", # Grey
-    "3 Scratch": "#FF5722", # Red
-    "4 Scratch": "#009688"  # Teal
+    "Healthy": "#4CAF50",
+    "1H": "#2196F3",
+    "2H": "#FF9800",
+    "3H": "#9C27B0",
+    "4H": "#795548",
+    "1 Scratch": "#E91E63",
+    "2 Scratch": "#607D8B",
+    "3 Scratch": "#FF5722",
+    "4 Scratch": "#009688"
 }
 
 # Load data (replace with your file loading method)
@@ -35,6 +35,14 @@ def load_data(file):
 st.sidebar.header("Data Configuration")
 uploaded_file = st.sidebar.file_uploader("Upload your Excel/CSV file", type=["xlsx", "xls", "csv"])
 
+st.sidebar.header("Customization Options")
+chart_type = st.sidebar.selectbox(
+    "Select Chart Type",
+    ["2D Scatter", "3D Scatter", "Bar Chart"],
+    key="chart_type_selector"
+)
+
+# Main App Area
 st.title("Data Visualization Dashboard")
 st.markdown(
     "<h3 style='text-align: center; color: #333;'>Upload your data and explore visualizations</h3>",
@@ -44,32 +52,44 @@ st.markdown(
 if uploaded_file is not None:
     try:
         df = load_data(uploaded_file)
-        df = df.dropna()  # Basic data cleaning
+        df = df.dropna()
 
-        # Default chart boundaries
-        fixed_x_range = (-70, -20)
-        fixed_y_range = (-70, -20)
-        fixed_z_range = (1700, 1800)
-
-        # Status selection
         status_options = df["Status"].unique()
-        selected_statuses = st.sidebar.multiselect(
-            "Select Statuses to Include:",
-            options=status_options,
-            default=list(status_options),
-            format_func=lambda x: x.replace(" ", " - ").title(),
-            key="status_selector"
-        )
+        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
 
-        # Filter data based on selected statuses
+        # Status selection with color picker
+        status_col, color_col = st.columns([3, 1])
+        selected_statuses = []
+        color_mapping = {}
+        
+        for status in status_options:
+            status_col.checkbox(
+                status,
+                value=True,
+                key=status,
+                help=f"Toggle {status} visibility"
+            )
+            color = color_col.color_picker(
+                f"Color for {status}",
+                value=PRO_COLOR_PALETTE.get(status, '#1f78b4'),
+                key=f"color_{status}"
+            )
+            color_mapping[status] = color
+
+        # Get selected statuses
+        selected_statuses = [status for status in status_options if status_col.checkbox.status]
+
         filtered_df = df[df["Status"].isin(selected_statuses)]
 
-        # Visualization type selection
-        chart_type = st.sidebar.selectbox(
-            "Select Chart Type",
-            ["2D Scatter", "3D Scatter", "Bar Chart"],
-            key="chart_type_selector"
-        )
+        # Chart configuration
+        x_var = st.sidebar.selectbox("X-axis", numeric_cols, index=0, key="x_axis")
+        y_var = st.sidebar.selectbox("Y-axis", numeric_cols, index=1, key="y_axis")
+        z_var = st.sidebar.selectbox("Z-axis (3D Only)", numeric_cols, index=2, key="z_axis")
+
+        x_range = st.sidebar.slider("X-axis Range", float(df[x_var].min()), float(df[x_var].max()), (float(df[x_var].min()), float(df[x_var].max())))
+        y_range = st.sidebar.slider("Y-axis Range", float(df[y_var].min()), float(df[y_var].max()), (float(df[y_var].min()), float(df[y_var].max())))
+
+        chart_title = st.sidebar.text_input("Chart Title", "Default Chart Title")
 
         # Plotting
         if not filtered_df.empty:
@@ -78,19 +98,19 @@ if uploaded_file is not None:
                 for status in selected_statuses:
                     subset = filtered_df[filtered_df["Status"] == status]
                     ax.scatter(
-                        subset["30.9"],
-                        subset["89.6"],
+                        subset[x_var],
+                        subset[y_var],
                         label=status,
-                        color=PRO_COLOR_PALETTE.get(status, '#1f78b4'),
+                        color=color_mapping[status],
                         alpha=0.7,
                         edgecolor='white',
                         linewidth=0.5
                     )
-                ax.set_title("30.9 vs 89.6 Performance", fontsize=16, weight='bold')
-                ax.set_xlim(fixed_x_range)
-                ax.set_ylim(fixed_y_range)
-                ax.set_xlabel("30.9 Metric", fontsize=12, color='#444')
-                ax.set_ylabel("89.6 Metric", fontsize=12, color='#444')
+                ax.set_title(chart_title, fontsize=16, weight='bold')
+                ax.set_xlim(x_range)
+                ax.set_ylim(y_range)
+                ax.set_xlabel(x_var, fontsize=12, color='#444')
+                ax.set_ylabel(y_var, fontsize=12, color='#444')
                 ax.tick_params(axis='both', colors='#666')
                 ax.legend(title="Status", loc='upper left', frameon=False)
                 plt.grid(color='#eee', linestyle='--', linewidth=0.5)
@@ -99,16 +119,15 @@ if uploaded_file is not None:
             elif chart_type == "3D Scatter":
                 fig = px.scatter_3d(
                     filtered_df,
-                    x="30.9",
-                    y="89.6",
-                    z="RPM",
+                    x=x_var,
+                    y=y_var,
+                    z=z_var,
                     color="Status",
-                    color_discrete_map=PRO_COLOR_PALETTE,
-                    title="3D Performance Visualization",
-                    labels={"RPM": "Revolutions per Minute"},
-                    range_x=fixed_x_range,
-                    range_y=fixed_y_range,
-                    range_z=fixed_z_range
+                    color_discrete_map=color_mapping,
+                    title=chart_title,
+                    range_x=x_range,
+                    range_y=y_range,
+                    range_z=[float(df[z_var].min()), float(df[z_var].max())]
                 )
                 fig.update_layout(
                     scene=dict(
@@ -127,20 +146,12 @@ if uploaded_file is not None:
                 fig = px.bar(
                     filtered_df.groupby("Status", as_index=False).mean(),
                     x="Status",
-                    y=["30.9", "89.6", "RPM"],
+                    y=[x_var, y_var],
                     color="Status",
-                    color_discrete_map=PRO_COLOR_PALETTE,
-                    title="Average Metrics by Status",
+                    color_discrete_map=color_mapping,
+                    title=chart_title,
                     labels={"value": "Average Value"},
-                    width=1000,
-                    height=600
-                )
-                fig.update_traces(
-                    opacity=0.8,
-                    hovertemplate="<b>Status: %{x}</b><br><br>" +
-                                "30.9: %{y:.2f}<br>" +
-                                "89.6: %{y:.2f}<br>" +
-                                "RPM: %{y:.2f}",
+                    barmode="group"
                 )
                 fig.update_layout(
                     title_font=dict(size=16, color='#333'),
@@ -173,7 +184,7 @@ if uploaded_file is not None:
         # Show raw data
         if st.checkbox("Show Raw Data", key="data_toggle"):
             st.subheader("Raw Data")
-            st.write(filtered_df.style.set_properties(**{
+            st.dataframe(filtered_df.style.set_properties(**{
                 'background-color': '#f9f9f9',
                 'color': '#333'
             }))
